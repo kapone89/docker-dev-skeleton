@@ -1,0 +1,81 @@
+#!/bin/bash
+set -euo pipefail
+
+CMD="$1"
+OPTIONS="${@:2}"
+VOLUMES=( bcn-postgres-data )
+COMPOSE_FILE="${BASH_SOURCE%/*}/../docker-compose.dev.yml"
+
+case $CMD in
+
+# run API server
+server)
+  docker-compose -f $COMPOSE_FILE up $OPTIONS bcndev-server
+  ;;
+
+# run other services and databases (like postgresql, mailcatcher, etc.)
+services)
+  docker-compose -f $COMPOSE_FILE up $OPTIONS bcndev-postgres bcndev-mailcatcher
+  ;;
+
+# run web (frontend)
+web)
+  docker-compose -f $COMPOSE_FILE up $OPTIONS bcndev-web
+  ;;
+
+# stop all containers
+stop)
+  docker-compose -f $COMPOSE_FILE stop $OPTIONS
+  ;;
+
+# execute migrations and seeds (it will remove existing data)
+setup)
+  docker exec -it bcndev-server yarn schema:drop
+  docker exec -it bcndev-server yarn migration:run
+  docker exec -it bcndev-server yarn task:seed
+  ;;
+
+# remove all containers, images and volumes (data)
+prune)
+  docker container rm bcndev-server bcndev-web bcndev-postgres bcndev-mailcatcher
+  docker volume rm bcndev-postgres-data
+  docker rmi bcndev-server bcndev-web
+  ;;
+
+# execute shell command on the server container (enter shell by default)
+shell-server)
+  SH_CMD="${OPTIONS:-sh}"
+  docker exec -it bcndev-server $SH_CMD
+  ;;
+
+# execute shell command on the web container (enter shell by default)
+shell-web)
+  SH_CMD="${OPTIONS:-sh}"
+  docker exec -it bcndev-web $SH_CMD
+  ;;
+
+# backup all volumes
+backup)
+  for volume in "${VOLUMES[@]}"
+  do
+    echo "Saving ${volume}..."
+    docker run -v "${volume}":/volume --rm volume-backup backup - > "${volume}".tar.lz4
+  done
+  ;;
+
+# restore all volumes from backup files
+restore)
+  for volume in "${VOLUMES[@]}"
+  do
+    file="${volume}".tar.lz4
+    if [ -f "${file}" ]; then
+      echo "Restoring ${volume}..."
+      cat "${file}" | docker run -i -v "${volume}":/volume --rm volume-backup restore -
+    fi
+  done
+  ;;
+
+*) echo "Invalid '$1' command"
+  ;;
+esac
+

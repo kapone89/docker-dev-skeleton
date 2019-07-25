@@ -1,0 +1,61 @@
+version: '3.7'
+services:
+  bcndev-server:
+    container_name: bcndev-server
+    build: 
+      context: ./.empty
+      dockerfile: '../server/Dockerfile'
+      target: development
+    image: bcndev-server
+    command: "sh -c \"yarn && yarn start:watch\""
+    ports:
+      - '3000:3000'
+      - '9229:9229'
+    volumes:
+      - .:/app
+    environment:
+      NODE_ENV: development
+      TYPEORM_HOST: bcndev-postgres
+      SMTP_HOST: bcndev-mailcatcher
+      SMTP_PORT: 25
+    depends_on:
+      - bcndev-postgres
+      - bcndev-mailcatcher
+
+  bcndev-web:
+    container_name: bcndev-web
+    build:
+      context: ./.empty
+      dockerfile: '../server/Dockerfile'
+      target: development
+    image: bcndev-web
+    command: "sh -c \"yarn && yarn start\""
+    ports:
+      - '8080:8080'
+    volumes:
+      - .:/app
+    environment:
+      NODE_ENV: development
+      API_URL: "http://localhost:3000"
+
+  bcndev-postgres:
+    container_name: bcndev-postgres
+    image: "postgres:11-alpine"
+    volumes:
+      - bcndev-postgres-data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_PASSWORD: bcn
+      POSTGRES_USER: bcn
+      POSTGRES_DB: bcn_development
+    ports:
+      - '5432:5432'
+
+  bcndev-mailcatcher:
+    container_name: bcndev-mailcatcher
+    image: "tophfr/mailcatcher:0.7.1"
+    ports:
+      - '1080:80'
+      - '1025:25'
+volumes:
+  bcndev-postgres-data:
+    name: bcndev-postgres-data
