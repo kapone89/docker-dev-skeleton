@@ -7,7 +7,7 @@ services:
       dockerfile: '../server/Dockerfile'
       target: development
     image: bcndev-server
-    command: "sh -c \"yarn && yarn start:watch\""
+    command: "yarn start:watch"
     ports:
       - '3000:3000'
       - '9229:9229'
@@ -26,10 +26,10 @@ services:
     container_name: bcndev-web
     build:
       context: ./.empty
-      dockerfile: '../server/Dockerfile'
+      dockerfile: '../web/Dockerfile'
       target: development
     image: bcndev-web
-    command: "sh -c \"yarn && yarn start\""
+    command: "yarn start"
     ports:
       - '8080:8080'
     volumes:

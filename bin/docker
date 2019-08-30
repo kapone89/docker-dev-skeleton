@@ -4,7 +4,8 @@ set -euo pipefail
 CMD="$1"
 OPTIONS="${@:2}"
 VOLUMES=( bcn-postgres-data )
-COMPOSE_FILE="${BASH_SOURCE%/*}/../docker-compose.dev.yml"
+COMPOSE_FILE="${BASH_SOURCE%/*}/../docker-compose.yml"
+DUMPS_DIR="${BASH_SOURCE%/*}/../dumps"
 
 case $CMD in
 
@@ -23,16 +24,24 @@ web)
   docker-compose -f $COMPOSE_FILE up $OPTIONS bcndev-web
   ;;
 
+# start all containers
+start)
+  docker-compose -f $COMPOSE_FILE up $OPTIONS
+  ;;
+
 # stop all containers
 stop)
   docker-compose -f $COMPOSE_FILE stop $OPTIONS
   ;;
 
-# execute migrations and seeds (it will remove existing data)
-setup)
-  docker exec -it bcndev-server yarn schema:drop
-  docker exec -it bcndev-server yarn migration:run
-  docker exec -it bcndev-server yarn task:seed
+# install node packages, execute migrations and seeds (it will remove existing data)
+setup-server)
+  docker-compose -f $COMPOSE_FILE run --rm bcndev-server sh -c "yarn && yarn schema:drop && yarn migration:run && yarn task:seed"
+  ;;
+
+# install node packages, execute migrations and seeds (it will remove existing data)
+setup-web)
+  docker-compose -f $COMPOSE_FILE run --rm --no-deps bcndev-web yarn
   ;;
 
 # remove all containers, images and volumes (data)
@@ -58,8 +67,9 @@ shell-web)
 backup)
   for volume in "${VOLUMES[@]}"
   do
+    file=$DUMPS_DIR/"${volume}".tar.bz2
     echo "Saving ${volume}..."
-    docker run -v "${volume}":/volume --rm volume-backup backup - > "${volume}".tar.lz4
+    docker run -v "${volume}":/volume --rm loomchild/volume-backup backup - > "${file}"
   done
   ;;
 
@@ -67,10 +77,10 @@ backup)
 restore)
   for volume in "${VOLUMES[@]}"
   do
-    file="${volume}".tar.lz4
+    file=$DUMPS_DIR/"${volume}".tar.bz2
     if [ -f "${file}" ]; then
       echo "Restoring ${volume}..."
-      cat "${file}" | docker run -i -v "${volume}":/volume --rm volume-backup restore -
+      cat "${file}" | docker run -i -v "${volume}":/volume --rm loomchild/volume-backup restore -
     fi
   done
   ;;
